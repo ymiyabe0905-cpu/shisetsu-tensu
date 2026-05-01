@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#1d9e75"/>
+  <text x="256" y="200" font-family="Hiragino Sans, sans-serif" font-size="120" font-weight="700" fill="#ffffff" text-anchor="middle">施設</text>
+  <text x="256" y="340" font-family="Hiragino Sans, sans-serif" font-size="120" font-weight="700" fill="#ffffff" text-anchor="middle">点数</text>
+  <rect x="80" y="380" width="352" height="6" fill="#ffffff" opacity="0.6"/>
+  <text x="256" y="450" font-family="Hiragino Sans, sans-serif" font-size="48" font-weight="500" fill="#ffffff" opacity="0.9" text-anchor="middle">居宅療養計算</text>
+</svg>

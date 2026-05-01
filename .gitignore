@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.log
+.env
+.env.*
+!.env.example
+
+# 検証用の一時ファイル（生成された場合のみ）
+run-tests.mjs
+tsconfig.check.json

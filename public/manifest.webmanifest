@@ -1,0 +1,20 @@
+{
+  "name": "施設点数管理",
+  "short_name": "施設点数",
+  "description": "居宅療養管理指導費・在宅患者訪問薬剤管理指導料の区分自動計算アプリ",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f3ee",
+  "theme_color": "#1d9e75",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "lang": "ja"
+}
