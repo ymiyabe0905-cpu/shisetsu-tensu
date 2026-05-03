@@ -708,3 +708,6 @@ textarea {
     padding: 10px 8px 80px;
   }
 }
+.tag-prev { background: #F1EFE8; color: #444441; border: 1px solid #B4B2A9; }
+.pt-btn.continued { border-left: 4px solid #B4B2A9; }
+.pt-btn.fresh { border-left: 4px solid var(--c-primary); }
