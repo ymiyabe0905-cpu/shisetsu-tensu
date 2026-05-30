@@ -187,4 +187,104 @@ export function Visits() {
                 );
               })}
               {card.patients.length === 0 && (
-                <div style={{ color: 'var(--c-text-2)', fontSize: 12, padding: 8 }}>患者が登録されていません
+                <div style={{ color: 'var(--c-text-2)', fontSize: 12, padding: 8 }}>患者が登録されていません</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {editVisit && <VisitEditModal patient={editVisit.patient} visit={editVisit.visit} ym={ym} onClose={() => setEditVisit(null)} />}
+    </div>
+  );
+}
+
+function insTag(i: string): string {
+  switch (i) {
+    case '介護': return 'kaigo';
+    case '介護予防': return 'yobo';
+    case '医療': return 'iryo';
+    default: return 'none';
+  }
+}
+
+interface CardData {
+  key: string;
+  facility: Facility;
+  unitId: string | undefined;
+  label: string;
+  patients: Patient[];
+}
+
+function buildCards(facilities: Facility[], patients: Patient[]): CardData[] {
+  const cards: CardData[] = [];
+  for (const fac of facilities) {
+    if (fac.hidden) continue;
+    const sepUnits = fac.units.filter((u) => u.separateBuilding);
+    if (sepUnits.length > 0) {
+      for (const u of sepUnits) {
+        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id);
+        cards.push({ key: `${fac.id}/${u.id}`, facility: fac, unitId: u.id, label: `${fac.name} ${u.name}`, patients: ps });
+      }
+      const rest = patients.filter((p) => {
+        if (p.hidden) return false;
+        if (p.facilityId !== fac.id) return false;
+        const u = fac.units.find((x) => x.id === p.unitId);
+        return !u || !u.separateBuilding;
+      });
+      if (rest.length > 0) {
+        cards.push({ key: `${fac.id}/_rest`, facility: fac, unitId: undefined, label: `${fac.name}（合算）`, patients: rest });
+      }
+    } else {
+      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id);
+      cards.push({ key: fac.id, facility: fac, unitId: undefined, label: fac.name, patients: ps });
+    }
+  }
+  return cards;
+}
+
+function previousYm(ym: string): string {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+interface VisitEditProps {
+  patient: Patient;
+  visit: VisitRecord;
+  ym: string;
+  onClose: () => void;
+}
+
+function VisitEditModal({ patient, visit, ym, onClose }: VisitEditProps) {
+  const { dispatch } = useStore();
+  const [date, setDate] = useState(visit.visitDate);
+  function save() {
+    if (!date.startsWith(ym)) { alert('算定対象月の日付を選んでください'); return; }
+    dispatch({ type: 'UPSERT_VISIT', visit: { ...visit, visitDate: date } });
+    onClose();
+  }
+  function remove() {
+    if (!confirm('訪問記録を取り消しますか？')) return;
+    dispatch({ type: 'DELETE_VISIT', patientId: patient.id, yearMonth: ym });
+    onClose();
+  }
+  return (
+    <Modal
+      open onClose={onClose} title={`${patient.name} ・ 訪問日`}
+      footer={
+        <>
+          <button className="btn danger" onClick={remove}>訪問取消</button>
+          <button className="btn" onClick={onClose}>キャンセル</button>
+          <button className="btn primary" onClick={save}>保存</button>
+        </>
+      }
+    >
+      <div className="field">
+        <label>訪問日</label>
+        <input type="date" value={date} min={`${ym}-01`} max={`${ym}-31`} onChange={(e) => setDate(e.target.value)} />
+        <span className="hint">算定対象月（{ymToLabel(ym)}）の日付のみ選択可</span>
+      </div>
+    </Modal>
+  );
+}
