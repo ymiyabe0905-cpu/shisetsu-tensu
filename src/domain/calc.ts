@@ -153,7 +153,16 @@ function eligiblesOfMonth(data: AppData, yearMonth: string): Eligible[] {
   return out;
 }
  
-export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGroup[] {
+export interface CalcOptions {
+  // 当月訪問ゼロだが前月実績があるグループも、基準区分のみ（対象0人）で含める
+  includePrevOnlyGroups?: boolean;
+}
+
+export function calculateMonth(
+  data: AppData,
+  yearMonth: string,
+  options: CalcOptions = {}
+): FacilityCalcGroup[] {
   const settings = data.settings;
   const prevYm = previousYearMonth(yearMonth);
   const currEligibles = eligiblesOfMonth(data, yearMonth);
@@ -272,7 +281,40 @@ export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGr
       freshCount,
     });
   }
- 
+
+  // 当月訪問ゼロだが前月実績があるグループ: 基準区分のみ（対象0人）で追加
+  if (options.includePrevOnlyGroups) {
+    for (const [key, prevItems] of prevGroups) {
+      if (currGroups.has(key)) continue; // 当月訪問ありは上で処理済み
+      const first = prevItems[0];
+      const facility = first.facility;
+      const unitId = first.unitId;
+      const insurance = first.bucket;
+      const prevCount = prevItems.length;
+      const prevCls = classifyBySerial(
+        facility,
+        insurance,
+        prevCount,
+        prevCount,
+        settings,
+        prevItems.map((it) => it.patient)
+      );
+      result.push({
+        facilityId: facility.id,
+        unitId: facility.units.find((u) => u.id === unitId)?.separateBuilding ? unitId : undefined,
+        groupLabel: groupLabel(facility, unitId),
+        insurance,
+        patientCount: 0,
+        classification: prevCls.value,
+        previousClassification: prevCls.value,
+        reason: `当月訪問なし / 前月${prevCount}人。基準区分は前月実績（${prevCls.label}）`,
+        rows: [],
+        continuingCount: 0,
+        freshCount: 0,
+      });
+    }
+  }
+
   result.sort((a, b) => a.groupLabel.localeCompare(b.groupLabel, 'ja'));
   return result;
 }

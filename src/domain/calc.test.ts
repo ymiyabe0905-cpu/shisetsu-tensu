@@ -244,6 +244,22 @@ describe('特例の前月歯止め', () => {
     expect(r[0].rows.find((x) => x.patientId === 'n2')!.classification).toBe(379);
   });
 
+  it('前月のみグループ: 当月訪問ゼロ・前月3人 → includePrevOnlyGroupsで基準区分のみ出る', () => {
+    const fac = makeFac({ id: 'F1', households: 30 });
+    const prevP = Array.from({ length: 3 }, (_, i) => makePatient(`p${i}`, 'F1'));
+    const vs = prevP.map((p) => makeVisit(p.id, prev, 5)); // 当月の訪問は作らない
+    const data = makeData([fac], prevP, vs);
+    // オプションなし → 当月訪問ゼロのグループは出ない
+    expect(calculateMonth(data, curr)).toHaveLength(0);
+    // オプションあり → 基準区分のみ・対象0人で出る（定員30・前月3人=518）
+    const r = calculateMonth(data, curr, { includePrevOnlyGroups: true });
+    expect(r).toHaveLength(1);
+    expect(r[0].patientCount).toBe(0);
+    expect(r[0].rows).toHaveLength(0);
+    expect(r[0].classification).toBe(518);
+    expect(r[0].previousClassification).toBe(518);
+  });
+
   it('20戸未満特例: 前月2人(<=2人)・当月新規2人 → 従来どおり全員518', () => {
     const fac = makeFac({ households: 18 });
     const prevP = [makePatient('p0', 'F1'), makePatient('p1', 'F1')];

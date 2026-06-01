@@ -11,7 +11,7 @@ export function Visits() {
   const [ym, setYm] = useState(thisMonth());
   const [editVisit, setEditVisit] = useState<{ patient: Patient; visit: VisitRecord } | null>(null);
 
-  const calc = useMemo(() => calculateMonth(data, ym), [data, ym]);
+  const calc = useMemo(() => calculateMonth(data, ym, { includePrevOnlyGroups: true }), [data, ym]);
 
   function classFor(facId: string, unitId: string | undefined, insurance: '介護' | '医療', patientId: string): number | null {
     const fac = data.facilities.find((f) => f.id === facId);
@@ -118,15 +118,28 @@ export function Visits() {
                     <span className="judge">基準区分: <b>{ks.classification}</b></span>
                   </>
                 )}
+                {ks && ks.rows.length === 0 && ks.previousClassification !== null && (
+                  <>
+                    <span style={{ color: 'var(--c-text-2)' }}>介護 当月0人（前月実績あり）</span>
+                    <span className="judge">基準区分: <b>{ks.classification}</b></span>
+                  </>
+                )}
                 {is && is.rows.length > 0 && (
                   <>
                     <span>医療 <b>{is.rows.length}人</b></span>
                     <span className="judge">基準区分: <b>{is.classification}</b></span>
                   </>
                 )}
-                {(!ks || ks.rows.length === 0) && (!is || is.rows.length === 0) && (
-                  <span style={{ color: 'var(--c-text-2)', fontSize: 12 }}>訪問実績なし</span>
+                {is && is.rows.length === 0 && is.previousClassification !== null && (
+                  <>
+                    <span style={{ color: 'var(--c-text-2)' }}>医療 当月0人（前月実績あり）</span>
+                    <span className="judge">基準区分: <b>{is.classification}</b></span>
+                  </>
                 )}
+                {(!ks || (ks.rows.length === 0 && ks.previousClassification === null)) &&
+                  (!is || (is.rows.length === 0 && is.previousClassification === null)) && (
+                    <span style={{ color: 'var(--c-text-2)', fontSize: 12 }}>訪問実績なし</span>
+                  )}
                 {card.facility.households === undefined && <span className="warn">戸数未入力</span>}
               </div>
             </div>
