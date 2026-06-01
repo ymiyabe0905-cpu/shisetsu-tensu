@@ -115,19 +115,13 @@ export function Visits() {
                 {ks && ks.rows.length > 0 && (
                   <>
                     <span>介護 <b>{ks.rows.length}人</b>（継続{ks.continuingCount}/新規{ks.freshCount}）</span>
-                    <span className="judge">当月区分: <b>{ks.classification}</b></span>
-                    {ks.previousClassification !== null && ks.previousClassification !== ks.classification && (
-                      <span className="judge">前月区分: <b>{ks.previousClassification}</b></span>
-                    )}
+                    <span className="judge">基準区分: <b>{ks.classification}</b></span>
                   </>
                 )}
                 {is && is.rows.length > 0 && (
                   <>
                     <span>医療 <b>{is.rows.length}人</b></span>
-                    <span className="judge">当月区分: <b>{is.classification}</b></span>
-                    {is.previousClassification !== null && is.previousClassification !== is.classification && (
-                      <span className="judge">前月区分: <b>{is.previousClassification}</b></span>
-                    )}
+                    <span className="judge">基準区分: <b>{is.classification}</b></span>
                   </>
                 )}
                 {(!ks || ks.rows.length === 0) && (!is || is.rows.length === 0) && (

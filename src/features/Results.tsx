@@ -79,10 +79,7 @@ export function Results() {
                 </div>
               </div>
               <div className="summary">
-                <span className="judge">当月区分: <b>{g.classification}</b></span>
-                {g.previousClassification !== null && g.previousClassification !== g.classification && (
-                  <span className="judge">前月区分: <b>{g.previousClassification}</b></span>
-                )}
+                <span className="judge">基準区分: <b>{g.classification}</b></span>
               </div>
             </div>
 

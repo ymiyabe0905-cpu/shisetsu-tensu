@@ -159,4 +159,88 @@ describe('通し番号方式', () => {
     expect(r[0].rows.find((x) => x.patientId === 'zc')!.classification).toBe(379);
   });
 });
+
+describe('特例の前月歯止め', () => {
+  const prev = '2026-04';
+  const curr = '2026-05';
+
+  it('10%特例: 前月9人(>10%)・当月は新規1人のみ → 通し番号10人目=342（518に上がらない）', () => {
+    const fac = makeFac({ households: 60 }); // 10% = 6人
+    const prevP = Array.from({ length: 9 }, (_, i) => makePatient(`p${i.toString().padStart(2, '0')}`, 'F1'));
+    const newP = makePatient('z_new', 'F1');
+    const all = [...prevP, newP];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      makeVisit('z_new', curr, 10), // 当月は新規1人だけ訪問
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    // 患者個人の点数: 通し番号10人目 = 342（前月超過のため10%特例で518に上がらない）
+    expect(r[0].rows.find((x) => x.patientId === 'z_new')!.classification).toBe(342);
+  });
+
+  it('10%特例: 前月9人(>10%)・当月5人(<=10%) → 全員518にならず通し番号区分（サマリーも379）', () => {
+    const fac = makeFac({ households: 60 }); // 10% = 6人
+    const prevP = Array.from({ length: 9 }, (_, i) => makePatient(`p${i.toString().padStart(2, '0')}`, 'F1'));
+    // 当月は前月継続5人が訪問（5 <= 10%枠6人）。従来は10%特例で全員518だった
+    const currP = prevP.slice(0, 5);
+    const all = [...prevP];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      ...currP.map((p) => makeVisit(p.id, curr, 10)),
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    // 継続者は前月区分(379)据置。10%特例が前月歯止めで不適用なので518にならない
+    expect(r[0].rows.every((row) => row.classification === 379)).toBe(true);
+    expect(r[0].classification).toBe(379); // サマリーの当月区分も379（518に上がらない）
+  });
+
+  it('10%特例: 前月3人(<=10%)・当月新規2人 → 従来どおり全員518', () => {
+    const fac = makeFac({ households: 60 }); // 10% = 6人
+    const prevP = Array.from({ length: 3 }, (_, i) => makePatient(`p${i}`, 'F1'));
+    const newPs = [makePatient('n1', 'F1'), makePatient('n2', 'F1')];
+    const all = [...prevP, ...newPs];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      ...newPs.map((p) => makeVisit(p.id, curr, 10)),
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    expect(r[0].rows.every((row) => row.classification === 518)).toBe(true);
+  });
+
+  it('10%特例: 前月実績なし・当月新規3人(<=10%) → 従来どおり全員518', () => {
+    const fac = makeFac({ households: 60 }); // 10% = 6人
+    const newPs = [makePatient('n1', 'F1'), makePatient('n2', 'F1'), makePatient('n3', 'F1')];
+    const vs = newPs.map((p) => makeVisit(p.id, curr, 10));
+    const r = calculateMonth(makeData([fac], newPs, vs), curr);
+    expect(r[0].rows.every((row) => row.classification === 518)).toBe(true);
+  });
+
+  it('20戸未満特例: 前月4人(>2人)・当月新規2人 → 通し番号で379（518に上がらない）', () => {
+    const fac = makeFac({ households: 18 }); // 20戸未満。10%=floor(1.8)=1
+    const prevP = Array.from({ length: 4 }, (_, i) => makePatient(`p${i}`, 'F1'));
+    const newPs = [makePatient('n1', 'F1'), makePatient('n2', 'F1')];
+    const all = [...prevP, ...newPs];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      ...newPs.map((p) => makeVisit(p.id, curr, 10)),
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    // prevCount=4, serial: n1=5→379, n2=6→379
+    expect(r[0].rows.find((x) => x.patientId === 'n1')!.classification).toBe(379);
+    expect(r[0].rows.find((x) => x.patientId === 'n2')!.classification).toBe(379);
+  });
+
+  it('20戸未満特例: 前月2人(<=2人)・当月新規2人 → 従来どおり全員518', () => {
+    const fac = makeFac({ households: 18 });
+    const prevP = [makePatient('p0', 'F1'), makePatient('p1', 'F1')];
+    const newPs = [makePatient('n1', 'F1'), makePatient('n2', 'F1')];
+    const all = [...prevP, ...newPs];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      ...newPs.map((p) => makeVisit(p.id, curr, 10)),
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    expect(r[0].rows.every((row) => row.classification === 518)).toBe(true);
+  });
+});
  

@@ -78,17 +78,20 @@ function classifyByCount(count: number, insurance: '介護' | '医療', settings
  
 // 通し番号方式の区分判定（個別の通し番号でtierを決める）
 // 特例（10%、20戸未満、個人宅同一世帯）は全員一律適用される
+// prevCount: 前月の同一算定グループの訪問人数。10%・20戸未満特例は
+//   前月実績が枠を超えていた場合、当月は適用しない（前月歯止め）。
 function classifyBySerial(
   facility: Facility,
   insurance: '介護' | '医療',
   serial: number,
   totalCount: number,
   settings: Settings,
-  patients: Patient[]
+  patients: Patient[],
+  prevCount: number = 0
 ): { value: number; label: string; reason: string } {
   let cls = classifyByCount(serial, insurance, settings);
   let reason = `通し番号${serial} → ${cls.label}区分`;
- 
+
   // 特例は全員一律
   if (facility.type === '個人宅') {
     const hh = new Map<string, number>();
@@ -102,14 +105,24 @@ function classifyBySerial(
     }
   }
   if (facility.households !== undefined && facility.households < 20 && totalCount <= 2) {
-    cls = classifyByCount(1, insurance, settings);
-    reason = `20戸未満2人以下特例: 戸数${facility.households}・対象${totalCount}人 → 1人区分（${cls.label}）として算定`;
+    // 前月実績が3人以上（=2人以下の枠を超えていた）なら当月は適用しない
+    if (prevCount >= 3) {
+      reason = `通し番号${serial} → ${cls.label}区分（前月${prevCount}人で20戸未満特例の枠超のため当月は不適用）`;
+    } else {
+      cls = classifyByCount(1, insurance, settings);
+      reason = `20戸未満2人以下特例: 戸数${facility.households}・対象${totalCount}人 → 1人区分（${cls.label}）として算定`;
+    }
   }
   if (facility.households !== undefined && facility.households > 0) {
     const limit = Math.floor(facility.households * 0.1);
     if (totalCount <= limit && totalCount > 0) {
-      cls = classifyByCount(1, insurance, settings);
-      reason = `10%特例: 戸数${facility.households}の10%（${limit}人）以下のため1人区分（${cls.label}）として算定`;
+      // 前月実績が戸数の10%を超えていたら当月は適用しない
+      if (prevCount > limit) {
+        reason = `通し番号${serial} → ${cls.label}区分（前月${prevCount}人で10%（${limit}人）超のため当月は10%特例を不適用）`;
+      } else {
+        cls = classifyByCount(1, insurance, settings);
+        reason = `10%特例: 戸数${facility.households}の10%（${limit}人）以下のため1人区分（${cls.label}）として算定`;
+      }
     }
   }
   return { ...cls, reason };
@@ -179,8 +192,8 @@ export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGr
       prevCls = classifyBySerial(facility, insurance, prevCount, prevCount, settings, prevItems!.map((it) => it.patient));
     }
  
-    // 当月総数で見た区分（参考表示用）
-    const currCls = classifyBySerial(facility, insurance, totalCount, totalCount, settings, items.map((it) => it.patient));
+    // 当月総数で見た区分（参考表示用）。前月人数で特例の前月歯止めを反映
+    const currCls = classifyBySerial(facility, insurance, totalCount, totalCount, settings, items.map((it) => it.patient), prevCount);
  
     // 新規者を訪問日順（同日は患者ID順）でソート、各人に通し番号を振る
     const continuingItems = items.filter((it) => prevVisitedIds.has(it.patient.id));
@@ -199,7 +212,7 @@ export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGr
     let freshCount = 0;
  
     for (const it of continuingItems) {
-      const value = prevCls?.value ?? classifyBySerial(facility, insurance, 1, totalCount, settings, items.map((x) => x.patient)).value;
+      const value = prevCls?.value ?? classifyBySerial(facility, insurance, 1, totalCount, settings, items.map((x) => x.patient), prevCount).value;
       rowMap.set(it.patient.id, {
         patientId: it.patient.id,
         patientName: it.patient.name,
@@ -215,7 +228,7 @@ export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGr
  
     freshItems.forEach((it, idx) => {
       const serial = prevCount + idx + 1;
-      const cls = classifyBySerial(facility, insurance, serial, totalCount, settings, items.map((x) => x.patient));
+      const cls = classifyBySerial(facility, insurance, serial, totalCount, settings, items.map((x) => x.patient), prevCount);
       rowMap.set(it.patient.id, {
         patientId: it.patient.id,
         patientName: it.patient.name,
@@ -240,13 +253,17 @@ export function calculateMonth(data: AppData, yearMonth: string): FacilityCalcGr
       reason += ` / 前月実績なし、新規者は通し番号1から開始`;
     }
  
+    // サマリーの代表区分: 前月実績があれば前月区分（継続者の据置基準）、
+    // なければ当月区分。新規で点数が変わる人は個別の行の点数で確認する。
+    const summaryClassification = prevCls?.value ?? currCls.value;
+
     result.push({
       facilityId: facility.id,
       unitId: facility.units.find((u) => u.id === unitId)?.separateBuilding ? unitId : undefined,
       groupLabel: groupLabel(facility, unitId),
       insurance,
       patientCount: totalCount,
-      classification: currCls.value,
+      classification: summaryClassification,
       previousClassification: prevCls?.value ?? null,
       reason,
       rows,

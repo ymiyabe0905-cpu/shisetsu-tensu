@@ -14,12 +14,13 @@ export function Dashboard() {
   const totalPatients = data.patients.filter((p) => !p.hidden).length;
   const visitedCount = calc.reduce((a, g) => a + g.rows.length, 0);
 
-  // 施設ごとの区分人数を集計（介護=単位、医療=点）
-  // 区分カウント
+  // 区分別の人数集計。患者ごとの実際の点数（継続=据置・新規=通し番号）で数える
   const buckets = { '518': 0, '379': 0, '342': 0, '650': 0, '320': 0, '290': 0 } as Record<string, number>;
   for (const g of calc) {
-    const key = String(g.classification);
-    if (buckets[key] !== undefined) buckets[key] += g.rows.length;
+    for (const row of g.rows) {
+      const key = String(row.classification);
+      if (buckets[key] !== undefined) buckets[key] += 1;
+    }
   }
 
   return (
@@ -71,7 +72,7 @@ export function Dashboard() {
                 <th>施設・棟</th>
                 <th>保険</th>
                 <th className="num">対象人数</th>
-                <th className="num">区分</th>
+                <th className="num">基準区分</th>
               </tr>
             </thead>
             <tbody>
