@@ -116,9 +116,10 @@ function classifyBySerial(
   if (facility.households !== undefined && facility.households > 0) {
     const limit = Math.floor(facility.households * 0.1);
     if (totalCount <= limit && totalCount > 0) {
-      // 前月実績が戸数の10%を超えていたら当月は適用しない
-      if (prevCount > limit) {
-        reason = `通し番号${serial} → ${cls.label}区分（前月${prevCount}人で10%（${limit}人）超のため当月は10%特例を不適用）`;
+      // 前月実績が戸数の10%枠に達していたら当月は適用しない
+      // （前月で枠が埋まっていれば、新規はその先の通し番号で通常区分になる）
+      if (prevCount >= limit) {
+        reason = `通し番号${serial} → ${cls.label}区分（前月${prevCount}人が10%枠（${limit}人）に達するため当月は10%特例を不適用）`;
       } else {
         cls = classifyByCount(1, insurance, settings);
         reason = `10%特例: 戸数${facility.households}の10%（${limit}人）以下のため1人区分（${cls.label}）として算定`;

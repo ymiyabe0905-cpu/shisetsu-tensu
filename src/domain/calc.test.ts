@@ -194,6 +194,20 @@ describe('特例の前月歯止め', () => {
     expect(r[0].classification).toBe(379); // サマリーの当月区分も379（518に上がらない）
   });
 
+  it('10%特例: 定員30・前月3人(=10%枠)・当月は新規1人のみ → 通し番号4人目=379（518のままにしない）', () => {
+    const fac = makeFac({ households: 30 }); // 10% = 3人（枠ちょうど）
+    const prevP = Array.from({ length: 3 }, (_, i) => makePatient(`p${i}`, 'F1'));
+    const newP = makePatient('z_new', 'F1');
+    const all = [...prevP, newP];
+    const vs = [
+      ...prevP.map((p) => makeVisit(p.id, prev, 5)),
+      makeVisit('z_new', curr, 10), // 6月は前月3人の実績なし、新規1人だけ
+    ];
+    const r = calculateMonth(makeData([fac], all, vs), curr);
+    // prevCount=3 が10%枠3に達するため当月は10%特例を不適用 → 通し番号4人目=379
+    expect(r[0].rows.find((x) => x.patientId === 'z_new')!.classification).toBe(379);
+  });
+
   it('10%特例: 前月3人(<=10%)・当月新規2人 → 従来どおり全員518', () => {
     const fac = makeFac({ households: 60 }); // 10% = 6人
     const prevP = Array.from({ length: 3 }, (_, i) => makePatient(`p${i}`, 'F1'));
