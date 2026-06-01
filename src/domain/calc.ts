@@ -88,9 +88,12 @@ function classifyBySerial(
   settings: Settings,
   patients: Patient[],
   prevCount: number = 0
-): { value: number; label: string; reason: string } {
+): { value: number; label: string; reason: string; tier: string } {
   let cls = classifyByCount(serial, insurance, settings);
   let reason = `通し番号${serial} → ${cls.label}区分`;
+  // tier: なぜその点数かの短い理由（UI表示用）
+  let tier =
+    serial <= 1 ? '1人区分' : serial <= 9 ? '2〜9人区分' : '10人以上区分';
 
   // 特例は全員一律
   if (facility.type === '個人宅') {
@@ -102,6 +105,7 @@ function classifyBySerial(
     if (Array.from(hh.values()).some((n) => n >= 2)) {
       cls = classifyByCount(1, insurance, settings);
       reason = `個人宅 同一世帯特例: 1人区分（${cls.label}）として算定`;
+      tier = '個人宅 同一世帯特例';
     }
   }
   if (facility.households !== undefined && facility.households < 20 && totalCount <= 2) {
@@ -111,6 +115,7 @@ function classifyBySerial(
     } else {
       cls = classifyByCount(1, insurance, settings);
       reason = `20戸未満2人以下特例: 戸数${facility.households}・対象${totalCount}人 → 1人区分（${cls.label}）として算定`;
+      tier = '20戸未満2人以下特例';
     }
   }
   if (facility.households !== undefined && facility.households > 0) {
@@ -123,10 +128,11 @@ function classifyBySerial(
       } else {
         cls = classifyByCount(1, insurance, settings);
         reason = `10%特例: 戸数${facility.households}の10%（${limit}人）以下のため1人区分（${cls.label}）として算定`;
+        tier = '10%特例';
       }
     }
   }
-  return { ...cls, reason };
+  return { ...cls, reason, tier };
 }
  
 interface Eligible {
@@ -197,7 +203,7 @@ export function calculateMonth(
     const prevCount = prevItems?.length ?? 0;
  
     // 前月区分（継続者用）
-    let prevCls: { value: number; label: string; reason: string } | null = null;
+    let prevCls: { value: number; label: string; reason: string; tier: string } | null = null;
     if (prevCount > 0) {
       prevCls = classifyBySerial(facility, insurance, prevCount, prevCount, settings, prevItems!.map((it) => it.patient));
     }
@@ -222,7 +228,8 @@ export function calculateMonth(
     let freshCount = 0;
  
     for (const it of continuingItems) {
-      const value = prevCls?.value ?? classifyBySerial(facility, insurance, 1, totalCount, settings, items.map((x) => x.patient), prevCount).value;
+      const fallback = prevCls ?? classifyBySerial(facility, insurance, 1, totalCount, settings, items.map((x) => x.patient), prevCount);
+      const value = fallback.value;
       rowMap.set(it.patient.id, {
         patientId: it.patient.id,
         patientName: it.patient.name,
@@ -232,10 +239,11 @@ export function calculateMonth(
         classification: value,
         carriedOver: true,
         note: noteForPatient(it.patient, it.visit, data.events, yearMonth),
+        reasonLabel: `前月から継続・据置（前月: ${fallback.tier}）`,
       });
       continuingCount++;
     }
- 
+
     freshItems.forEach((it, idx) => {
       const serial = prevCount + idx + 1;
       const cls = classifyBySerial(facility, insurance, serial, totalCount, settings, items.map((x) => x.patient), prevCount);
@@ -248,6 +256,7 @@ export function calculateMonth(
         classification: cls.value,
         carriedOver: false,
         note: noteForPatient(it.patient, it.visit, data.events, yearMonth) + (it.visit ? ` / 通し番号${serial}` : ''),
+        reasonLabel: cls.tier,
       });
       freshCount++;
     });

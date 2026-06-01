@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore, makeId } from '../state/store';
 import { calculateMonth, visitOfMonth, visitedPreviousMonth, moveEventInMonth } from '../domain/calc';
 import { Facility, Patient, VisitRecord } from '../domain/types';
@@ -10,8 +10,16 @@ export function Visits() {
   const { data, dispatch } = useStore();
   const [ym, setYm] = useState(thisMonth());
   const [editVisit, setEditVisit] = useState<{ patient: Patient; visit: VisitRecord } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const calc = useMemo(() => calculateMonth(data, ym, { includePrevOnlyGroups: true }), [data, ym]);
+
+  // トーストを数秒で自動的に消す
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   function classFor(facId: string, unitId: string | undefined, insurance: '介護' | '医療', patientId: string): number | null {
     const fac = data.facilities.find((f) => f.id === facId);
@@ -44,14 +52,76 @@ export function Visits() {
       dispatch({ type: 'UPSERT_VISIT', visit: { ...existing, visitDate } });
       return;
     }
+
+    // タップ前の各患者の点数を記録（区分が切り替わったか比較するため）
+    const before = classMap(data);
+
+    let nextData: typeof data;
     if (existing) {
       dispatch({ type: 'DELETE_VISIT', patientId: patient.id, yearMonth: ym });
+      nextData = { ...data, visits: data.visits.filter((v) => !(v.patientId === patient.id && v.yearMonth === ym)) };
     } else {
       if (patient.status !== '訪問対象' && patient.status !== '退院予定') {
         if (!confirm(`この患者は「${patient.status}」です。本当に訪問ありにしますか？`)) return;
       }
-      dispatch({ type: 'UPSERT_VISIT', visit: { id: makeId('v'), patientId: patient.id, yearMonth: ym, visitDate } });
+      const newVisit = { id: makeId('v'), patientId: patient.id, yearMonth: ym, visitDate };
+      dispatch({ type: 'UPSERT_VISIT', visit: newVisit });
+      nextData = { ...data, visits: [...data.visits, newVisit] };
     }
+
+    // 区分（点数ティア）が切り替わった人がいるときだけトースト表示
+    const msg = changeMessage(before, nextData, patient);
+    if (msg) setToast(msg);
+  }
+
+  // 患者ID → 点数 のマップ（その時点の計算結果）
+  function classMap(d: typeof data): Map<string, number> {
+    const m = new Map<string, number>();
+    for (const g of calculateMonth(d, ym)) {
+      for (const r of g.rows) {
+        if (r.classification !== null) m.set(r.patientId, r.classification);
+      }
+    }
+    return m;
+  }
+
+  // 各患者の理由ラベルを引く
+  function reasonLabelFor(d: typeof data, patientId: string): string {
+    for (const g of calculateMonth(d, ym)) {
+      const r = g.rows.find((x) => x.patientId === patientId);
+      if (r) return r.reasonLabel;
+    }
+    return '';
+  }
+
+  // タップ前後で点数が変わった人をまとめた1行メッセージ（変化なしは null）
+  function changeMessage(
+    before: Map<string, number>,
+    nextData: typeof data,
+    tapped: Patient
+  ): string | null {
+    const after = classMap(nextData);
+    // 点数が変わった患者ID（タップ本人と、連動して変わった他の人）
+    const changedIds: string[] = [];
+    const ids = new Set<string>([...before.keys(), ...after.keys()]);
+    for (const id of ids) {
+      if (before.get(id) !== after.get(id)) changedIds.push(id);
+    }
+    if (changedIds.length === 0) return null;
+
+    // タップ本人を優先して主メッセージにする
+    const mainId = changedIds.includes(tapped.id) ? tapped.id : changedIds[0];
+    const mainP = data.patients.find((p) => p.id === mainId);
+    const newCls = after.get(mainId);
+    if (newCls === undefined) {
+      // 取消で算定対象から外れた等
+      return `${mainP?.name ?? ''}：訪問取消`;
+    }
+    const label = reasonLabelFor(nextData, mainId);
+    let msg = `${mainP?.name ?? ''}：${newCls}（${label}）`;
+    const others = changedIds.filter((id) => id !== mainId).length;
+    if (others > 0) msg += ` ／ 連動して他${others}人も変更`;
+    return msg;
   }
 
   function copyPrevMonth() {
@@ -81,6 +151,11 @@ export function Visits() {
 
   return (
     <div>
+      {toast && (
+        <div className="toast no-print" role="status" onClick={() => setToast(null)}>
+          {toast}
+        </div>
+      )}
       <div className="page-header">
         <h2>月別訪問登録</h2>
         <div className="hstack">

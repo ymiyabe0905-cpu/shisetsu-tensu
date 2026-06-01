@@ -99,4 +99,6 @@ export interface PatientCalcRow {
   classification: number | null;
   carriedOver: boolean;
   note: string;
+  // なぜその点数になったかの短い理由（例: 「2〜9人区分」「10%特例」「前月から継続・据置」）
+  reasonLabel: string;
 }

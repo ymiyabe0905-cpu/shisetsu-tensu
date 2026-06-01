@@ -711,3 +711,26 @@ textarea {
 .tag-prev { background: #FBEAF0; color: #72243E; border: 1px solid #D4537E; }
 .pt-btn.continued { border-left: 4px solid #B4B2A9; }
 .pt-btn.fresh { border-left: 4px solid var(--c-primary); }
+
+/* タップ時に点数根拠を一瞬だけ出すトースト */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  max-width: calc(100% - 32px);
+  background: rgba(33, 37, 41, 0.94);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  animation: toast-in 0.18s ease-out;
+}
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
