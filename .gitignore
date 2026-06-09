@@ -14,3 +14,6 @@ dist-ssr
 # 検証用の一時ファイル（生成された場合のみ）
 run-tests.mjs
 tsconfig.check.json
+
+# 生成物（MANUAL.md と scripts から再生成できるため追跡しない）
+*.docx
