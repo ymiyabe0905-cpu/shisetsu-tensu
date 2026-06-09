@@ -11,6 +11,8 @@ export function Visits() {
   const [ym, setYm] = useState(thisMonth());
   const [editVisit, setEditVisit] = useState<{ patient: Patient; visit: VisitRecord } | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [filterFac, setFilterFac] = useState('');
 
   const calc = useMemo(() => calculateMonth(data, ym, { includePrevOnlyGroups: true }), [data, ym]);
 
@@ -124,30 +126,7 @@ export function Visits() {
     return msg;
   }
 
-  function copyPrevMonth() {
-    const prev = previousYm(ym);
-    const prevVisits = data.visits.filter((v) => v.yearMonth === prev);
-    if (prevVisits.length === 0) {
-      alert('前月の訪問データがありません');
-      return;
-    }
-    if (!confirm(`前月（${ymToLabel(prev)}）の対象者${prevVisits.length}件を当月にコピーしますか？`)) return;
-    let copied = 0;
-    for (const pv of prevVisits) {
-      const exists = visitOfMonth(pv.patientId, ym, data.visits);
-      if (exists) continue;
-      const p = data.patients.find((x) => x.id === pv.patientId);
-      if (!p || p.hidden) continue;
-      if (p.status === '入院中' || p.status === '終了' || p.status === '死亡') continue;
-      const today = todayIso();
-      const visitDate = today.startsWith(ym) ? today : `${ym}-01`;
-      dispatch({ type: 'UPSERT_VISIT', visit: { id: makeId('v'), patientId: pv.patientId, yearMonth: ym, visitDate } });
-      copied++;
-    }
-    alert(`${copied}件コピーしました`);
-  }
-
-  const cards = buildCards(data.facilities, data.patients);
+  const cards = buildCards(data.facilities, data.patients, { search, filterFac });
 
   return (
     <div>
@@ -159,9 +138,29 @@ export function Visits() {
       <div className="page-header">
         <h2>月別訪問登録</h2>
         <div className="hstack">
-          <button className="btn" onClick={copyPrevMonth}>前月対象者をコピー</button>
           <MonthPicker value={ym} onChange={setYm} />
         </div>
+      </div>
+
+      <div className="hstack" style={{ marginBottom: 12 }}>
+        <input
+          type="text"
+          placeholder="患者名・フリガナで検索"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ flex: 1, minWidth: 160 }}
+        />
+        <select value={filterFac} onChange={(e) => setFilterFac(e.target.value)} style={{ width: 'auto' }}>
+          <option value="">全施設</option>
+          {[...data.facilities]
+            .filter((f) => !f.hidden)
+            .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+            .map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+        </select>
       </div>
 
       <div className="alert info">
@@ -169,7 +168,9 @@ export function Visits() {
       </div>
 
       {cards.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', color: 'var(--c-text-2)' }}>施設または患者が登録されていません</div>
+        <div className="card" style={{ textAlign: 'center', color: 'var(--c-text-2)' }}>
+          {search || filterFac ? '条件に一致する患者がいません' : '施設または患者が登録されていません'}
+        </div>
       )}
 
       {cards.map((card) => {
@@ -298,19 +299,34 @@ interface CardData {
   patients: Patient[];
 }
 
-function buildCards(facilities: Facility[], patients: Patient[]): CardData[] {
+interface CardFilter {
+  search: string;
+  filterFac: string;
+}
+
+function buildCards(facilities: Facility[], patients: Patient[], filter: CardFilter): CardData[] {
+  const q = filter.search.trim();
+  // 患者名・フリガナで部分一致（空なら全員通す）
+  const matchPatient = (p: Patient) =>
+    !q || p.name.includes(q) || (p.kana ?? '').includes(q);
+
   const cards: CardData[] = [];
-  for (const fac of facilities) {
+  // 施設名順（あいうえお）に並べる
+  const sortedFacs = [...facilities].sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  for (const fac of sortedFacs) {
     if (fac.hidden) continue;
+    if (filter.filterFac && fac.id !== filter.filterFac) continue;
     const sepUnits = fac.units.filter((u) => u.separateBuilding);
     if (sepUnits.length > 0) {
       for (const u of sepUnits) {
-        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id);
+        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id && matchPatient(p));
+        if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
         cards.push({ key: `${fac.id}/${u.id}`, facility: fac, unitId: u.id, label: `${fac.name} ${u.name}`, patients: ps });
       }
       const rest = patients.filter((p) => {
         if (p.hidden) return false;
         if (p.facilityId !== fac.id) return false;
+        if (!matchPatient(p)) return false;
         const u = fac.units.find((x) => x.id === p.unitId);
         return !u || !u.separateBuilding;
       });
@@ -318,17 +334,12 @@ function buildCards(facilities: Facility[], patients: Patient[]): CardData[] {
         cards.push({ key: `${fac.id}/_rest`, facility: fac, unitId: undefined, label: `${fac.name}（合算）`, patients: rest });
       }
     } else {
-      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id);
+      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && matchPatient(p));
+      if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
       cards.push({ key: fac.id, facility: fac, unitId: undefined, label: fac.name, patients: ps });
     }
   }
   return cards;
-}
-
-function previousYm(ym: string): string {
-  const [y, m] = ym.split('-').map(Number);
-  const d = new Date(y, m - 2, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 interface VisitEditProps {
