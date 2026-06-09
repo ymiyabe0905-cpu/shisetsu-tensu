@@ -712,6 +712,39 @@ textarea {
 .pt-btn.continued { border-left: 4px solid #B4B2A9; }
 .pt-btn.fresh { border-left: 4px solid var(--c-primary); }
 
+/* 更新履歴（チェンジログ） */
+.changelog-entry {
+  padding: 10px 0;
+  border-top: 1px solid var(--c-border);
+}
+.changelog-entry:first-child {
+  border-top: none;
+}
+.changelog-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.changelog-ver {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--c-primary-d);
+}
+.changelog-date {
+  font-size: 12px;
+  color: var(--c-text-2);
+}
+.changelog-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.changelog-list li {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--c-text);
+}
+
 /* タップ時に点数根拠を一瞬だけ出すトースト */
 .toast {
   position: fixed;

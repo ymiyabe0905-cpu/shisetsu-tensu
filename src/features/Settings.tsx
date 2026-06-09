@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { AppData, DEFAULT_SETTINGS, Settings as SettingsT } from '../domain/types';
 import { downloadFile, todayIso } from '../utils';
 import { clearAll } from '../storage/db';
+import { CHANGELOG } from '../domain/changelog';
 
 export function Settings() {
   const { data, dispatch } = useStore();
@@ -191,6 +192,27 @@ export function Settings() {
         <button className="btn primary" onClick={save}>
           設定を保存
         </button>
+      </div>
+
+      <div className="card">
+        <div className="card-head">
+          <div className="name">更新履歴</div>
+        </div>
+        <div className="changelog">
+          {CHANGELOG.map((entry, i) => (
+            <div className="changelog-entry" key={i}>
+              <div className="changelog-head">
+                <span className="changelog-ver">{entry.version}</span>
+                <span className="changelog-date">{entry.date}</span>
+              </div>
+              <ul className="changelog-list">
+                {entry.changes.map((c, j) => (
+                  <li key={j}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="card" style={{ marginTop: 20, borderColor: '#f09595' }}>
