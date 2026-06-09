@@ -122,7 +122,7 @@ src/
   features/       7画面（Dashboard / Facilities / Patients / Visits / Events / Results / Settings）
   utils.ts
 public/
-  icon.svg
+  icon.png
   manifest.webmanifest
   sw.js           Service Worker
 .github/workflows/deploy.yml

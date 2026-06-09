@@ -1,7 +1,7 @@
 // シンプルな Service Worker
 // 静的アセットをキャッシュしてオフライン動作を可能にする
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `shisetsu-tensu-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {
