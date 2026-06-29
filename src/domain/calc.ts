@@ -14,18 +14,28 @@ export function locationOnDate(
   date: string,
   events: PatientEvent[]
 ): { facilityId: string; unitId?: string } {
-  const moves = events
+  const allMoves = events
     .filter(
       (e) =>
         e.patientId === patient.id &&
-        (e.kind === '棟ユニット移動' || e.kind === '施設移動') &&
-        e.date <= date
+        (e.kind === '棟ユニット移動' || e.kind === '施設移動')
     )
     .sort((a, b) => a.date.localeCompare(b.date));
-  if (moves.length === 0) {
+  if (allMoves.length === 0) {
     return { facilityId: patient.facilityId, unitId: patient.unitId };
   }
-  const last = moves[moves.length - 1];
+  // 指定日までに適用される移動（移動日 <= 指定日）
+  const applied = allMoves.filter((e) => e.date <= date);
+  if (applied.length === 0) {
+    // 最初の移動より前 → 移動元（最初の移動の from）に在籍。
+    // patient.facilityId は移動後に書き換わっているため from を正とする。
+    const first = allMoves[0];
+    return {
+      facilityId: first.fromFacilityId ?? patient.facilityId,
+      unitId: first.fromUnitId,
+    };
+  }
+  const last = applied[applied.length - 1];
   return {
     facilityId: last.toFacilityId ?? patient.facilityId,
     unitId: last.toUnitId,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, makeId } from '../state/store';
-import { calculateMonth, visitOfMonth, visitedPreviousMonth, moveEventInMonth } from '../domain/calc';
+import { calculateMonth, visitOfMonth, visitedPreviousMonth, moveEventInMonth, locationOnDate } from '../domain/calc';
 import { Facility, Patient, PatientEvent, VisitRecord } from '../domain/types';
 import { dateToMd, thisMonth, todayIso, ymToLabel } from '../utils';
 import { MonthPicker } from '../components/MonthPicker';
@@ -222,8 +222,9 @@ export function Visits() {
             <div className="pt-grid">
               {card.patients.map((p) => {
                 const v = visitOfMonth(p.id, ym, data.visits);
-                const visited = !!v;
-                const wasPrev = visitedPreviousMonth(p.id, ym, data.visits);
+                // 訪問✓は訪問日時点の所在カードだけに表示。移動先カードは訪問なし（白）で表示する。
+                const visited = !!v && locMatchesCard(locationOnDate(p, v.visitDate, data.events), card.facility, card.unitId);
+                const wasPrev = visited && visitedPreviousMonth(p.id, ym, data.visits);
                 const insBucket: '介護' | '医療' | null =
                   p.insurance === '介護' || p.insurance === '介護予防' ? '介護'
                   : p.insurance === '医療' ? '医療' : null;
@@ -311,6 +312,19 @@ function byKana(a: Patient, b: Patient): number {
   return ka.localeCompare(kb, 'ja');
 }
 
+// その所在(loc)が、カード(fac, cardUnitId)に属するか判定。
+// cardUnitId=undefined は合算/通常カード（別建物でないユニット所在を受け持つ）。
+function locMatchesCard(
+  loc: { facilityId: string; unitId?: string },
+  fac: Facility,
+  cardUnitId: string | undefined
+): boolean {
+  if (loc.facilityId !== fac.id) return false;
+  if (cardUnitId !== undefined) return loc.unitId === cardUnitId;
+  const u = fac.units.find((x) => x.id === loc.unitId);
+  return !u || !u.separateBuilding;
+}
+
 // 当月にその患者が所属していた所在の一覧（現在地＋当月の移動の移動元/移動先）。
 // 棟/施設移動した患者を、その月は移動前の施設・ユニットにも表示するために使う。
 function patientLocationsInMonth(
@@ -354,12 +368,7 @@ function buildCards(
   // 当月の所在（現在地＋移動元/移動先）のいずれかが一致すれば属する。
   // unitId=undefined のカード（合算/通常施設）は、別建物でないユニット所在を受け持つ。
   const belongs = (p: Patient, fac: Facility, unitId: string | undefined) =>
-    patientLocationsInMonth(p, ym, events).some((loc) => {
-      if (loc.facilityId !== fac.id) return false;
-      if (unitId !== undefined) return loc.unitId === unitId;
-      const u = fac.units.find((x) => x.id === loc.unitId);
-      return !u || !u.separateBuilding;
-    });
+    patientLocationsInMonth(p, ym, events).some((loc) => locMatchesCard(loc, fac, unitId));
 
   const cards: CardData[] = [];
   // 施設名順（あいうえお）に並べる

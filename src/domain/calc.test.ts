@@ -74,6 +74,28 @@ describe('棟移動', () => {
     expect(r.find((g) => g.groupLabel.includes('西棟'))!.patientCount).toBe(3);
     expect(r.find((g) => g.groupLabel.includes('東棟'))!.patientCount).toBe(4);
   });
+
+  it('移動日より前の訪問は移動元で集計（患者レコードは移動先に更新済み）', () => {
+    const fac: Facility = {
+      id: 'F1', name: 'けやきの郷', type: 'サ高住', households: 30,
+      units: [{ id: 'W', name: '西棟', separateBuilding: true }, { id: 'E', name: '東棟', separateBuilding: true }],
+    };
+    const w = Array.from({ length: 3 }, (_, i) => ({ ...makePatient(`w${i}`, fac.id), unitId: 'W' }));
+    const e = Array.from({ length: 3 }, (_, i) => ({ ...makePatient(`e${i}`, fac.id), unitId: 'E' }));
+    // m1は実アプリ同様、移動後にレコードのunitIdが移動先(E)へ更新されている
+    const m: Patient = { ...makePatient('m1', fac.id), unitId: 'E' };
+    const all = [...w, ...e, m];
+    // m1の訪問は移動日(15)より前の10日 → 移動元(W)で集計されるべき
+    const vs = [...w.map((p) => makeVisit(p.id, ym, 5)), ...e.map((p) => makeVisit(p.id, ym, 20)), makeVisit('m1', ym, 10)];
+    const data: AppData = {
+      schemaVersion: 1, facilities: [fac], patients: all, visits: vs,
+      events: [{ id: 'mv1', patientId: 'm1', kind: '棟ユニット移動', date: `${ym}-15`, fromFacilityId: fac.id, fromUnitId: 'W', toFacilityId: fac.id, toUnitId: 'E' }],
+      settings: DEFAULT_SETTINGS,
+    };
+    const r = calculateMonth(data, ym);
+    expect(r.find((g) => g.groupLabel.includes('西棟'))!.patientCount).toBe(4); // w3人 + m1
+    expect(r.find((g) => g.groupLabel.includes('東棟'))!.patientCount).toBe(3); // e3人のみ
+  });
 });
  
 describe('通し番号方式', () => {
