@@ -304,6 +304,13 @@ interface CardFilter {
   filterFac: string;
 }
 
+// 50音順の比較（フリガナ優先・なければ氏名で代用）
+function byKana(a: Patient, b: Patient): number {
+  const ka = (a.kana ?? a.name) || '';
+  const kb = (b.kana ?? b.name) || '';
+  return ka.localeCompare(kb, 'ja');
+}
+
 function buildCards(facilities: Facility[], patients: Patient[], filter: CardFilter): CardData[] {
   const q = filter.search.trim();
   // 患者名・フリガナで部分一致（空なら全員通す）
@@ -319,7 +326,7 @@ function buildCards(facilities: Facility[], patients: Patient[], filter: CardFil
     const sepUnits = fac.units.filter((u) => u.separateBuilding);
     if (sepUnits.length > 0) {
       for (const u of sepUnits) {
-        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id && matchPatient(p));
+        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id && matchPatient(p)).sort(byKana);
         if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
         cards.push({ key: `${fac.id}/${u.id}`, facility: fac, unitId: u.id, label: `${fac.name} ${u.name}`, patients: ps });
       }
@@ -329,12 +336,12 @@ function buildCards(facilities: Facility[], patients: Patient[], filter: CardFil
         if (!matchPatient(p)) return false;
         const u = fac.units.find((x) => x.id === p.unitId);
         return !u || !u.separateBuilding;
-      });
+      }).sort(byKana);
       if (rest.length > 0) {
         cards.push({ key: `${fac.id}/_rest`, facility: fac, unitId: undefined, label: `${fac.name}（合算）`, patients: rest });
       }
     } else {
-      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && matchPatient(p));
+      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && matchPatient(p)).sort(byKana);
       if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
       cards.push({ key: fac.id, facility: fac, unitId: undefined, label: fac.name, patients: ps });
     }
