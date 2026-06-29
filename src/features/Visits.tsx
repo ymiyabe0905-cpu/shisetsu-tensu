@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore, makeId } from '../state/store';
 import { calculateMonth, visitOfMonth, visitedPreviousMonth, moveEventInMonth } from '../domain/calc';
-import { Facility, Patient, VisitRecord } from '../domain/types';
+import { Facility, Patient, PatientEvent, VisitRecord } from '../domain/types';
 import { dateToMd, thisMonth, todayIso, ymToLabel } from '../utils';
 import { MonthPicker } from '../components/MonthPicker';
 import { Modal } from '../components/Modal';
@@ -126,7 +126,7 @@ export function Visits() {
     return msg;
   }
 
-  const cards = buildCards(data.facilities, data.patients, { search, filterFac });
+  const cards = buildCards(data.facilities, data.patients, data.events, ym, { search, filterFac });
 
   return (
     <div>
@@ -311,11 +311,55 @@ function byKana(a: Patient, b: Patient): number {
   return ka.localeCompare(kb, 'ja');
 }
 
-function buildCards(facilities: Facility[], patients: Patient[], filter: CardFilter): CardData[] {
+// 当月にその患者が所属していた所在の一覧（現在地＋当月の移動の移動元/移動先）。
+// 棟/施設移動した患者を、その月は移動前の施設・ユニットにも表示するために使う。
+function patientLocationsInMonth(
+  p: Patient,
+  ym: string,
+  events: PatientEvent[]
+): { facilityId: string; unitId?: string }[] {
+  const locs: { facilityId: string; unitId?: string }[] = [
+    { facilityId: p.facilityId, unitId: p.unitId },
+  ];
+  for (const e of events) {
+    if (e.patientId !== p.id) continue;
+    if (e.kind !== '棟ユニット移動' && e.kind !== '施設移動') continue;
+    if (!e.date.startsWith(ym)) continue;
+    if (e.fromFacilityId) locs.push({ facilityId: e.fromFacilityId, unitId: e.fromUnitId });
+    if (e.toFacilityId) locs.push({ facilityId: e.toFacilityId, unitId: e.toUnitId });
+  }
+  // 重複を除去
+  const seen = new Set<string>();
+  return locs.filter((l) => {
+    const k = `${l.facilityId}/${l.unitId ?? ''}`;
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+function buildCards(
+  facilities: Facility[],
+  patients: Patient[],
+  events: PatientEvent[],
+  ym: string,
+  filter: CardFilter
+): CardData[] {
   const q = filter.search.trim();
   // 患者名・フリガナで部分一致（空なら全員通す）
   const matchPatient = (p: Patient) =>
     !q || p.name.includes(q) || (p.kana ?? '').includes(q);
+
+  // その患者が「(fac, unitId)カード」に属するか。
+  // 当月の所在（現在地＋移動元/移動先）のいずれかが一致すれば属する。
+  // unitId=undefined のカード（合算/通常施設）は、別建物でないユニット所在を受け持つ。
+  const belongs = (p: Patient, fac: Facility, unitId: string | undefined) =>
+    patientLocationsInMonth(p, ym, events).some((loc) => {
+      if (loc.facilityId !== fac.id) return false;
+      if (unitId !== undefined) return loc.unitId === unitId;
+      const u = fac.units.find((x) => x.id === loc.unitId);
+      return !u || !u.separateBuilding;
+    });
 
   const cards: CardData[] = [];
   // 施設名順（あいうえお）に並べる
@@ -326,22 +370,16 @@ function buildCards(facilities: Facility[], patients: Patient[], filter: CardFil
     const sepUnits = fac.units.filter((u) => u.separateBuilding);
     if (sepUnits.length > 0) {
       for (const u of sepUnits) {
-        const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && p.unitId === u.id && matchPatient(p)).sort(byKana);
+        const ps = patients.filter((p) => !p.hidden && matchPatient(p) && belongs(p, fac, u.id)).sort(byKana);
         if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
         cards.push({ key: `${fac.id}/${u.id}`, facility: fac, unitId: u.id, label: `${fac.name} ${u.name}`, patients: ps });
       }
-      const rest = patients.filter((p) => {
-        if (p.hidden) return false;
-        if (p.facilityId !== fac.id) return false;
-        if (!matchPatient(p)) return false;
-        const u = fac.units.find((x) => x.id === p.unitId);
-        return !u || !u.separateBuilding;
-      }).sort(byKana);
+      const rest = patients.filter((p) => !p.hidden && matchPatient(p) && belongs(p, fac, undefined)).sort(byKana);
       if (rest.length > 0) {
         cards.push({ key: `${fac.id}/_rest`, facility: fac, unitId: undefined, label: `${fac.name}（合算）`, patients: rest });
       }
     } else {
-      const ps = patients.filter((p) => !p.hidden && p.facilityId === fac.id && matchPatient(p)).sort(byKana);
+      const ps = patients.filter((p) => !p.hidden && matchPatient(p) && belongs(p, fac, undefined)).sort(byKana);
       if (q && ps.length === 0) continue; // 検索中で該当者ゼロのカードは隠す
       cards.push({ key: fac.id, facility: fac, unitId: undefined, label: fac.name, patients: ps });
     }

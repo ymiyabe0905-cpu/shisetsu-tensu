@@ -22,11 +22,26 @@ export function Events() {
   const { data, dispatch } = useStore();
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filterFac, setFilterFac] = useState('');
 
   const patient = data.patients.find((p) => p.id === selectedPatientId);
   const events = data.events
     .filter((e) => e.patientId === selectedPatientId)
     .sort((a, b) => b.date.localeCompare(a.date));
+
+  // 施設フィルタ・名前/フリガナ検索を適用し、施設名→フリガナ順で並べた患者リスト
+  const q = search.trim();
+  const facName = (id: string) => data.facilities.find((f) => f.id === id)?.name ?? '';
+  const patientOptions = data.patients
+    .filter((p) => !p.hidden)
+    .filter((p) => !filterFac || p.facilityId === filterFac)
+    .filter((p) => !q || p.name.includes(q) || (p.kana ?? '').includes(q))
+    .sort((a, b) => {
+      const f = facName(a.facilityId).localeCompare(facName(b.facilityId), 'ja');
+      if (f !== 0) return f;
+      return (a.kana ?? a.name).localeCompare(b.kana ?? b.name, 'ja');
+    });
 
   return (
     <div>
@@ -35,21 +50,36 @@ export function Events() {
       </div>
 
       <div className="card">
+        <div className="hstack" style={{ marginBottom: 12 }}>
+          <input
+            type="text"
+            placeholder="患者名・フリガナで検索"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ flex: 1, minWidth: 160 }}
+          />
+          <select value={filterFac} onChange={(e) => setFilterFac(e.target.value)} style={{ width: 'auto' }}>
+            <option value="">全施設</option>
+            {[...data.facilities]
+              .filter((f) => !f.hidden)
+              .sort((a, b) => a.name.localeCompare(b.name, 'ja'))
+              .map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+          </select>
+        </div>
         <div className="form-grid">
           <div className="field full">
             <label>患者を選択</label>
             <select value={selectedPatientId} onChange={(e) => setSelectedPatientId(e.target.value)}>
               <option value="">—</option>
-              {data.patients
-                .filter((p) => !p.hidden)
-                .map((p) => {
-                  const fac = data.facilities.find((f) => f.id === p.facilityId);
-                  return (
-                    <option key={p.id} value={p.id}>
-                      {p.name}（{fac?.name ?? '—'}）
-                    </option>
-                  );
-                })}
+              {patientOptions.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}（{facName(p.facilityId) || '—'}）
+                </option>
+              ))}
             </select>
           </div>
         </div>
