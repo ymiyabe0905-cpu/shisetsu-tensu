@@ -10,6 +10,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-07-01',
+    version: 'v1.6',
+    changes: [
+      '月別訪問登録で、タップ前でも「前月✓」（前月訪問あり）が分かるように表示',
+    ],
+  },
+  {
     date: '2026-06-02',
     version: 'v1.5',
     changes: [

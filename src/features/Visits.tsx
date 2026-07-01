@@ -224,7 +224,8 @@ export function Visits() {
                 const v = visitOfMonth(p.id, ym, data.visits);
                 // 訪問✓は訪問日時点の所在カードだけに表示。移動先カードは訪問なし（白）で表示する。
                 const visited = !!v && locMatchesCard(locationOnDate(p, v.visitDate, data.events), card.facility, card.unitId);
-                const wasPrev = visited && visitedPreviousMonth(p.id, ym, data.visits);
+                // 前月訪問の有無（タップ前でも分かるように、当月訪問とは切り離して判定）
+                const wasPrev = visitedPreviousMonth(p.id, ym, data.visits);
                 const insBucket: '介護' | '医療' | null =
                   p.insurance === '介護' || p.insurance === '介護予防' ? '介護'
                   : p.insurance === '医療' ? '医療' : null;
